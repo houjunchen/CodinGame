@@ -1,32 +1,40 @@
 // https://www.codingame.com/ide/puzzle/expand-the-polynomial
-extern crate regex;
-
-use regex::Regex;
+use std::io;
 
 fn extract_coef(input: &str) -> Vec<i32> {
-    let re = Regex::new(r"([+-]?\d*)([x](?:\^(\d*))?)?").unwrap();
+    let splited: Vec<&str> = input.split("x").collect();
     let mut ces = Vec::new();
-    let mut max_e = 0;
-    for caps in re.captures_iter(input) {
-        let c_str = caps.get(1).map(|m| m.as_str()).unwrap();
-        let c = match c_str {
-            "+" => 1,
-            "-" => -1,
-            _ => c_str.parse::<i32>().unwrap_or(1),
-        };
-        let e = match caps.get(2).map(|m| m.as_str()).unwrap_or("") {
-            "" => 0,
-            "x" => 1,
-            _ => caps.get(3).map_or("0", |m| m.as_str()).parse::<i32>().unwrap_or(0),
-        };
-        if e > max_e {
-            max_e = e;
+
+    for i in 0..splited.len() {
+        if splited[i] == "" {
+            ces.push(1);
+        } else if splited[i] == "-" {
+            ces.push(-1);
+        } else if splited[i].starts_with("+") || splited[i].starts_with("-") {
+            ces.push(1);
+            ces.push(splited[i].parse::<i32>().unwrap_or(0));
+        } else if splited[i].starts_with("^") {
+            if splited[i].contains("+") {
+                let index = splited[i].find("+").unwrap();
+                ces.push(splited[i][1..index].parse::<i32>().unwrap());
+                ces.push(splited[i][index..splited[i].len()].parse::<i32>().unwrap_or(1));
+            } else if splited[i].contains("-") {
+                let index = splited[i].find("-").unwrap();
+                ces.push(splited[i][1..index].parse::<i32>().unwrap());
+                ces.push(splited[i][index..splited[i].len()].parse::<i32>().unwrap_or(-1));
+            }
+        } else {
+            ces.push(splited[i].parse::<i32>().unwrap_or(0));
         }
-        ces.push((c, e));
     }
-    let mut coef = vec![0; max_e as usize + 1];
-    for (c, e) in ces.iter() {
-        coef[*e as usize] = *c
+
+    if ces.len() % 2 == 1 {
+        ces.push(0);
+    }
+
+    let mut coef = vec![0; ces[1] as usize + 1];
+    for i in 0..ces.len()/2 {
+        coef[ces[i*2+1] as usize] = ces[i*2];
     }
     coef
 }
@@ -41,7 +49,7 @@ fn multiply(coef1: &Vec<i32>, coef2: &Vec<i32>, output_e: usize) -> Vec<i32> {
             if n == 0 {
                 continue;
             }
-            output_c[i+j] += m*n;
+            output_c[i + j] += m * n;
         }
     }
     output_c
@@ -56,15 +64,28 @@ fn get_output_coef(coefs: Vec<Vec<i32>>, output_e: usize) -> Vec<i32> {
 }
 
 fn main() {
-    let re = Regex::new(r"\(([x\d^+-]+)\)(\^(\d*))?").unwrap();
-    let poly = "(x-1)(x+1)(x^2+1)";
+    let mut input_line = String::new();
+    io::stdin().read_line(&mut input_line).unwrap();
+    let poly = input_line.trim().to_string();
+
     let mut coefs = Vec::new();
     let mut output_e = 0;
-    for caps in re.captures_iter(poly) {
-        let e = caps.get(3).map_or("1", |m| m.as_str()).parse::<i32>().unwrap();
-        for _i in 0..e {
-            let coef = extract_coef(caps.get(1).unwrap().as_str());
-            output_e += coef.len()-1;
+
+    let splited: Vec<&str> = poly.split(|c| c == '(' || c == ')').collect();
+    let mut last_coef: Vec<i32> = Vec::new();
+    for i in 0..splited.len() {
+        if splited[i] == "" || splited[i] == "*" {
+            continue;
+        }
+        if splited[i].starts_with("^") {
+            for _i in 0..splited[i].trim_left_matches("^").parse::<i32>().unwrap() - 1 {
+                output_e += last_coef.len() - 1;
+                coefs.push(last_coef.clone());
+            }
+        } else {
+            let coef = extract_coef(splited[i]);
+            output_e += coef.len() - 1;
+            last_coef = coef.clone();
             coefs.push(coef);
         }
     }
@@ -86,7 +107,7 @@ fn main() {
                 x if x > 0 => print!("+{}x", output_c[i]),
                 _ => print!("{}x", output_c[i]),
             }
-        } else if i == output_c.len() -1 {
+        } else if i == output_c.len() - 1 {
             match output_c[i] {
                 1 => print!("x^{}", i),
                 -1 => print!("-x^{}", i),
